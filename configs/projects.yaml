@@ -1,0 +1,36 @@
+# Open-source C projects to compile. Each is built once per toolchain config.
+#
+#   build: autotools | cmake | make | a shell snippet run in the source dir
+#          ($CC and $CFLAGS are exported; install nothing, just build in-tree)
+#
+# Start small, verify the pipeline end to end, then grow the list toward ~300.
+# Keep notes on projects that vendor shared code (gnulib, zlib, md5, getopt):
+# that is where cross-project leakage comes from, and split.py dedupes it.
+
+configs:
+  - {name: gcc-O0,   cc: gcc,   cflags: "-O0"}
+  - {name: gcc-O2,   cc: gcc,   cflags: "-O2"}
+  - {name: clang-O0, cc: clang, cflags: "-O0"}
+  - {name: clang-O2, cc: clang, cflags: "-O2"}
+
+projects:
+  - {name: zlib,      git: https://github.com/madler/zlib,           ref: v1.3.1,   build: cmake}
+  - {name: lua,       git: https://github.com/lua/lua,               ref: v5.4.7,   build: "make CC=$CC MYCFLAGS=\"$CFLAGS\" MYLDFLAGS= -j$(nproc)"}
+  - {name: jq,        git: https://github.com/jqlang/jq,             ref: jq-1.7.1, build: "git submodule update --init && autoreconf -fi && ./configure --with-oniguruma=builtin --disable-docs && make -j$(nproc)"}
+  - {name: cjson,     git: https://github.com/DaveGamble/cJSON,      ref: v1.7.18,  build: cmake}
+  - {name: sqlite,    git: https://github.com/sqlite/sqlite,         ref: version-3.46.1, build: autotools}
+  - {name: curl,      git: https://github.com/curl/curl,             ref: curl-8_10_1, build: "autoreconf -fi && ./configure --without-ssl --without-libpsl --disable-ldap && make -j$(nproc)"}
+  - {name: libpng,    git: https://github.com/pnggroup/libpng,       ref: v1.6.44,  build: cmake}
+  - {name: redis,     git: https://github.com/redis/redis,           ref: 7.2.5,    build: "make CC=$CC OPTIMIZATION=\"$CFLAGS\" MALLOC=libc -j$(nproc)"}
+  - {name: nginx,     git: https://github.com/nginx/nginx,           ref: release-1.27.2, build: "./auto/configure --without-http_rewrite_module --without-http_gzip_module --with-cc-opt=\"$CFLAGS\" && make -j$(nproc)"}
+  - {name: tmux,      git: https://github.com/tmux/tmux,             ref: "3.5",    build: autotools}
+  - {name: libuv,     git: https://github.com/libuv/libuv,           ref: v1.49.2,  build: cmake}
+  - {name: mbedtls,   git: https://github.com/Mbed-TLS/mbedtls,      ref: v3.6.2,   build: "git submodule update --init && cmake -B build -DENABLE_TESTING=OFF -DCMAKE_C_FLAGS=\"$CFLAGS\" && cmake --build build -j$(nproc)"}
+  - {name: libyaml,   git: https://github.com/yaml/libyaml,          ref: "0.2.5",  build: autotools}
+  - {name: http-parser, git: https://github.com/nodejs/http-parser,  ref: v2.9.4,   build: "make CC=$CC CFLAGS_FAST_EXTRA=\"$CFLAGS\" package"}
+  - {name: htop,      git: https://github.com/htop-dev/htop,         ref: "3.3.0",  build: autotools}
+  - {name: binutils-readelf, git: https://github.com/bminor/binutils-gdb, ref: binutils-2_43, build: "./configure --disable-gdb --disable-gdbserver --disable-sim --disable-werror && make -j$(nproc) all-binutils"}
+  - {name: coreutils, git: https://github.com/coreutils/coreutils,   ref: v9.5,     build: "./bootstrap --skip-po && ./configure --disable-nls && make -j$(nproc)"}
+  - {name: grep,      git: https://git.savannah.gnu.org/git/grep.git, ref: v3.11,   build: "./bootstrap --skip-po && ./configure --disable-nls && make -j$(nproc)"}
+  - {name: openssh,   git: https://github.com/openssh/openssh-portable, ref: V_9_9_P1, build: "autoreconf -fi && ./configure --without-openssl --without-zlib && make -j$(nproc)"}
+  - {name: busybox,   git: https://github.com/mirror/busybox,        ref: "1_36_1", build: "make defconfig && make CC=$CC HOSTCC=$CC EXTRA_CFLAGS=\"$CFLAGS\" -j$(nproc)"}

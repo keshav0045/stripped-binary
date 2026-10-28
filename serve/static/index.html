@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fnname</title>
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --card:#fff; --line:#e7e5e4; --accent:#2563eb; --bar:#dbeafe; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0c0a09; --fg:#f5f5f4; --muted:#a8a29e; --card:#1c1917; --line:#292524; --accent:#60a5fa; --bar:#1e3a5f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:32px 16px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p { color:var(--muted); margin:0 0 20px; }
+  textarea { width:100%; height:320px; padding:12px; border:1px solid var(--line); border-radius:8px;
+             background:var(--card); color:var(--fg); font:13px/1.45 ui-monospace, Menlo, monospace; resize:vertical; }
+  button { margin-top:12px; padding:9px 18px; border:0; border-radius:6px; background:var(--accent); color:#fff;
+           font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  ol { list-style:none; padding:0; margin:24px 0 0; }
+  li { position:relative; display:flex; justify-content:space-between; padding:10px 14px; margin-bottom:6px;
+       border:1px solid var(--line); border-radius:6px; background:var(--card); overflow:hidden; }
+  li .bar { position:absolute; inset:0 auto 0 0; background:var(--bar); z-index:0; }
+  li span { position:relative; z-index:1; }
+  li .name { font-family:ui-monospace, Menlo, monospace; font-weight:600; }
+  li .score { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .err { color:#dc2626; margin-top:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>fnname</h1>
+  <p>Paste a function from Ghidra's decompiler window. You get five ranked name suggestions with confidence scores.</p>
+  <textarea id="code" spellcheck="false">undefined8 FUN_00101a30(char *param_1,long param_2)
+{
+  char *pcVar1;
+  pcVar1 = strchr(param_1,0x3a);
+  if (pcVar1 == (char *)0x0) {
+    return 0xffffffff;
+  }
+  *pcVar1 = '\0';
+  *(char **)(param_2 + 8) = param_1;
+  *(char **)(param_2 + 0x10) = pcVar1 + 1 + strspn(pcVar1 + 1," \t");
+  return 0;
+}</textarea>
+  <button id="go">Suggest names</button>
+  <div id="err" class="err"></div>
+  <ol id="out"></ol>
+</main>
+<script>
+const go = document.getElementById("go"), out = document.getElementById("out"), err = document.getElementById("err");
+go.onclick = async () => {
+  go.disabled = true; err.textContent = ""; out.innerHTML = "";
+  try {
+    const r = await fetch("/predict", {method: "POST", headers: {"Content-Type": "application/json"},
+                                      body: JSON.stringify({code: document.getElementById("code").value})});
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    const {candidates} = await r.json();
+    if (!candidates.length) err.textContent = "No similar functions found.";
+    for (const c of candidates) {
+      const li = document.createElement("li");
+      const pct = (100 * c.score).toFixed(1);
+      li.innerHTML = `<div class="bar" style="width:${pct}%"></div><span class="name"></span><span class="score">${pct}%</span>`;
+      li.querySelector(".name").textContent = c.name;
+      out.appendChild(li);
+    }
+  } catch (e) { err.textContent = e.message; }
+  go.disabled = false;
+};
+</script>
+</body>
+</html>

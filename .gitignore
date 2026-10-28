@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+work/
+data/*.jsonl
+data/split_projects.json
+preds/
+models/
+!models/.gitkeep

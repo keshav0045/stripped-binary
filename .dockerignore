@@ -1,0 +1,6 @@
+.venv
+work
+data
+preds
+**/__pycache__
+!models/knn.pkl
