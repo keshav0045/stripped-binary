@@ -6,3 +6,5 @@ data/split_projects.json
 preds/
 models/
 !models/.gitkeep
+.idea/
+*.iml
