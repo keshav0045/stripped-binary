@@ -32,7 +32,9 @@ def decompile(stripped, out, timeout):
     if r.returncode == 0 and part.exists():
         part.rename(out)
         return f"ok {stripped}"
-    return f"FAIL {stripped}: {r.stdout[-500:]}{r.stderr[-500:]}"
+    log = (r.stdout + r.stderr).splitlines()
+    errors = [l.strip() for l in log if "ERROR" in l or "Exception" in l]
+    return f"FAIL {stripped}: {errors[0][:400] if errors else (log[-1] if log else 'no output')}"
 
 
 def main():

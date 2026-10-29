@@ -8,12 +8,15 @@ ARG GHIDRA_DATE=20241105
 ENV DEBIAN_FRONTEND=noninteractive \
     GHIDRA_HOME=/opt/ghidra
 
+# libharfbuzz/freetype/fontconfig: Ghidra measures fonts even headless, and the
+# -headless JDK doesn't pull them in (UnsatisfiedLinkError in libfontmanager.so).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential gcc clang lld binutils make cmake ninja-build pkg-config \
         autoconf automake libtool autopoint gettext bison flex texinfo gperf m4 \
         git ca-certificates curl unzip rsync wget xz-utils \
         libncurses-dev libevent-dev zlib1g-dev libreadline-dev \
         openjdk-21-jdk-headless python3 python3-venv python3-pip \
+        libharfbuzz0b libfreetype6 fontconfig fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL -o /tmp/ghidra.zip \

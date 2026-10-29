@@ -40,7 +40,7 @@ def checkout(proj, src_root):
     dest = src_root / proj["name"]
     if not dest.exists():
         subprocess.run(
-            ["git", "clone", "--depth", "1", "--branch", str(proj["ref"]), proj["git"], str(dest)],
+            ["git", "-c", "advice.detachedHead=false", "clone", "--depth", "1", "--branch", str(proj["ref"]), proj["git"], str(dest)],
             check=True,
         )
     return dest
@@ -62,7 +62,8 @@ def collect_binaries(tree, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
     found = 0
     for p in tree.rglob("*"):
-        if not p.is_file() or p.is_symlink() or not has_symtab(p):
+        # CMakeFiles/ holds CMake's compiler-probe programs, not project code
+        if "CMakeFiles" in p.parts or not p.is_file() or p.is_symlink() or not has_symtab(p):
             continue
         rel = str(p.relative_to(tree)).replace("/", "__")
         shutil.copy2(p, out_dir / rel)
