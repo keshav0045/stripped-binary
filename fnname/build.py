@@ -9,10 +9,12 @@ the build tree is copied out next to a stripped twin.
 """
 
 import argparse
+import fnmatch
 import os
 import shutil
 import stat
 import subprocess
+import tarfile
 from pathlib import Path
 
 import yaml
@@ -36,12 +38,33 @@ def make_wrappers(work, cfg):
     return bindir
 
 
+def fetch_tarball(url, dest):
+    # GNU release tarballs ship pre-bootstrapped, which skips cloning gnulib per config.
+    tmp = dest.with_name(dest.name + ".tmp")
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    archive = tmp / "src.tar"
+    subprocess.run(["curl", "-fsSL", "--retry", "3", "-o", str(archive), url], check=True)
+    with tarfile.open(archive) as tf:
+        tf.extractall(tmp, filter="data")
+    archive.unlink()
+    (top,) = tmp.iterdir()
+    top.rename(dest)
+    tmp.rmdir()
+
+
 def checkout(proj, src_root):
     dest = src_root / proj["name"]
-    if not dest.exists():
+    if dest.exists():
+        return dest
+    if "tarball" in proj:
+        fetch_tarball(proj["tarball"], dest)
+    else:
         subprocess.run(
             ["git", "-c", "advice.detachedHead=false", "clone", "--depth", "1", "--branch", str(proj["ref"]), proj["git"], str(dest)],
             check=True,
+            # A missing GitHub repo answers with a login prompt; fail instead of hanging on it.
+            env=dict(os.environ, GIT_TERMINAL_PROMPT="0"),
         )
     return dest
 
@@ -58,14 +81,17 @@ def has_symtab(path):
         return False
 
 
-def collect_binaries(tree, out_dir):
+def collect_binaries(tree, out_dir, keep=None):
     out_dir.mkdir(parents=True, exist_ok=True)
     found = 0
     for p in tree.rglob("*"):
         # CMakeFiles/ holds CMake's compiler-probe programs, not project code
         if "CMakeFiles" in p.parts or not p.is_file() or p.is_symlink() or not has_symtab(p):
             continue
-        rel = str(p.relative_to(tree)).replace("/", "__")
+        rel_path = p.relative_to(tree).as_posix()
+        if keep and not any(fnmatch.fnmatch(rel_path, pat) for pat in keep):
+            continue
+        rel = rel_path.replace("/", "__")
         shutil.copy2(p, out_dir / rel)
         subprocess.run(["strip", "-o", str(out_dir / f"{rel}.stripped"), str(p)], check=True)
         found += 1
@@ -90,7 +116,7 @@ def build_one(proj, cfg, work):
         rc = subprocess.run(["bash", "-c", cmd], cwd=tree, env=env, stdout=fh, stderr=subprocess.STDOUT).returncode
 
     # Partial builds still yield useful binaries, so collect regardless of rc.
-    n = collect_binaries(tree, out_dir)
+    n = collect_binaries(tree, out_dir, proj.get("keep"))
     shutil.rmtree(tree, ignore_errors=True)
     if n:
         (out_dir / ".done").write_text(f"rc={rc}\n")

@@ -1,5 +1,7 @@
 # Open-source C projects to compile. Each is built once per toolchain config.
 #
+#   tarball: release archive URL, used instead of git+ref when set
+#   keep:    optional path globs (relative to the build tree); only matching binaries are collected
 #   build: autotools | cmake | make | a shell snippet run in the source dir
 #          ($CC and $CFLAGS are exported; install nothing, just build in-tree)
 #
@@ -25,12 +27,17 @@ projects:
   - {name: nginx,     git: https://github.com/nginx/nginx,           ref: release-1.27.2, build: "./auto/configure --without-http_rewrite_module --without-http_gzip_module --with-cc-opt=\"$CFLAGS\" && make -j$(nproc)"}
   - {name: tmux,      git: https://github.com/tmux/tmux,             ref: "3.5",    build: autotools}
   - {name: libuv,     git: https://github.com/libuv/libuv,           ref: v1.49.2,  build: cmake}
-  - {name: mbedtls,   git: https://github.com/Mbed-TLS/mbedtls,      ref: v3.6.2,   build: "git submodule update --init && cmake -B build -DENABLE_TESTING=OFF -DCMAKE_C_FLAGS=\"$CFLAGS\" && cmake --build build -j$(nproc)"}
+  - {name: mbedtls,   git: https://github.com/Mbed-TLS/mbedtls,      ref: v3.6.2,   build: "git submodule update --init && cmake -B build -DENABLE_TESTING=OFF -DCMAKE_C_FLAGS=\"$CFLAGS\" && cmake --build build -j$(nproc)",
+     # Every program statically links the whole library. These 9 cover 98% of its
+     # 2,480 unique functions; the other 60 only repeat them (and cost hours in Ghidra).
+     keep: [build/programs/ssl/ssl_server2, build/programs/x509/cert_write, build/programs/test/metatest,
+            build/programs/psa/psa_constant_names, build/programs/fuzz/fuzz_pkcs7, build/programs/ssl/ssl_context_info,
+            build/programs/test/udp_proxy, build/programs/x509/cert_req, build/programs/psa/key_ladder_demo]}
   - {name: libyaml,   git: https://github.com/yaml/libyaml,          ref: "0.2.5",  build: autotools}
-  - {name: http-parser, git: https://github.com/nodejs/http-parser,  ref: v2.9.4,   build: "make CC=$CC CFLAGS_FAST_EXTRA=\"$CFLAGS\" package"}
+  - {name: http-parser, git: https://github.com/nodejs/http-parser,  ref: v2.9.4,   build: "make CC=$CC test_fast library"}
   - {name: htop,      git: https://github.com/htop-dev/htop,         ref: "3.3.0",  build: autotools}
-  - {name: binutils-readelf, git: https://github.com/bminor/binutils-gdb, ref: binutils-2_43, build: "./configure --disable-gdb --disable-gdbserver --disable-sim --disable-werror && make -j$(nproc) all-binutils"}
-  - {name: coreutils, git: https://github.com/coreutils/coreutils,   ref: v9.5,     build: "./bootstrap --skip-po && ./configure --disable-nls && make -j$(nproc)"}
-  - {name: grep,      git: https://git.savannah.gnu.org/git/grep.git, ref: v3.11,   build: "./bootstrap --skip-po && ./configure --disable-nls && make -j$(nproc)"}
+  - {name: binutils-readelf, git: https://sourceware.org/git/binutils-gdb.git, ref: binutils-2_43, build: "./configure --disable-gdb --disable-gdbserver --disable-sim --disable-werror && make -j$(nproc) all-binutils"}
+  - {name: coreutils, tarball: https://ftp.gnu.org/gnu/coreutils/coreutils-9.5.tar.xz, build: "FORCE_UNSAFE_CONFIGURE=1 ./configure --disable-nls && make -j$(nproc)"}
+  - {name: grep,      tarball: https://ftp.gnu.org/gnu/grep/grep-3.11.tar.xz,            build: "./configure --disable-nls && make -j$(nproc)"}
   - {name: openssh,   git: https://github.com/openssh/openssh-portable, ref: V_9_9_P1, build: "autoreconf -fi && ./configure --without-openssl --without-zlib && make -j$(nproc)"}
   - {name: busybox,   git: https://github.com/mirror/busybox,        ref: "1_36_1", build: "make defconfig && make CC=$CC HOSTCC=$CC EXTRA_CFLAGS=\"$CFLAGS\" -j$(nproc)"}

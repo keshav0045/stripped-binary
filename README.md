@@ -18,14 +18,29 @@ open-source C ──► gcc/clang × -O0/-O2 ──► unstripped ─┐   (labe
 
 ## Results
 
-> Placeholder until the full dataset is built. Every number here must come from `make eval` on held-out projects.
+**Dataset:** 102,513 functions from 20 open-source C projects × 4 builds (GCC/Clang × -O0/-O2).
+**Test:** 11,535 functions from 4 projects never seen in training (curl, nginx, libpng, http-parser).
+Val is jq (6,480); train is the other 15 projects (83,587).
 
-| model | exact@1 | exact@5 | subtoken F1 |
-|---|---|---|---|
-| frequency prior | – | – | – |
-| TF-IDF kNN | – | – | – |
-| zero-shot (Claude Opus 5.5) | – | – | – |
-| Qwen2.5-Coder-1.5B + LoRA | – | – | – |
+| model | test set | exact@1 | exact@5 | subtoken F1 |
+|---|---|---|---|---|
+| frequency prior | all 11,535 | 0.1 | 0.1 | 0.0 |
+| TF-IDF kNN | all 11,535 | 0.0 | 0.0 | 1.3 |
+| Qwen2.5-Coder-7B, zero-shot (local, Ollama) | 1K sample | – | – | – |
+| Qwen2.5-Coder-1.5B + LoRA | 1K sample | – | – | – |
+
+**Why the baselines are near zero:** only 0.7% of test-function names occur
+anywhere in training. Names are project-specific (`Curl_altsvc_parse`), so any
+method that retrieves training names has almost nothing to retrieve. kNN often
+finds the right *behaviour* (for curl's `altsvc_free` it proposes `hi_free`,
+`uv__free`) but can only answer with another project's vocabulary. A model has
+to *generate* names to score.
+
+**Dataset funnel** (`make dataset`): Ghidra found 462,927 functions. Of those,
+271,654 were duplicates within a project (shared code linked into many
+executables), 73,506 kept their real names after stripping (exported symbols),
+11,427 were runtime helpers, and 3,827 (0.8%) had no symbol at their address.
+102,513 remain.
 
 `make eval` also prints breakdowns by optimization level, by function size and
 by compiler config, followed by sample failures.
@@ -82,9 +97,12 @@ make dataset                   # pair + split + dedupe, prints drop statistics
 # Stage 2: baselines
 make baseline                  # preds/knn.jsonl, preds/frequency.jsonl, models/knn.pkl
 
-# Stage 3: models  (pip install -r requirements-llm.txt)
-make lora                      # needs a CUDA GPU with about 16 GB
-make zeroshot                  # needs Anthropic API credentials; 2K-sample by default
+# Stage 3: models, all free
+ollama pull qwen2.5-coder:7b
+make zeroshot-local            # local zero-shot baseline, 1K test sample, resumable
+# LoRA: run notebooks/kaggle_lora.ipynb on a free Kaggle T4 (instructions inside),
+# then copy lora.jsonl into preds/
+# (optional, paid: make zeroshot runs the same prompt against the Claude API)
 
 # Stage 4 and 5
 make eval

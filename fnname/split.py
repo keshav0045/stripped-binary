@@ -28,12 +28,20 @@ def main():
     ap.add_argument("--test", type=float, default=0.1)
     ap.add_argument("--seed", default="0")
     ap.add_argument("--test-projects", nargs="*", default=[], help="force these into test")
+    ap.add_argument("--val-projects", nargs="*", default=[], help="force these into val")
     args = ap.parse_args()
 
     rows = [json.loads(l) for l in open(args.data)]
     split_of = {}
     for p in sorted({r["project"] for r in rows}):
-        split_of[p] = "test" if p in args.test_projects else assign(p, args.val, args.test, args.seed)
+        if p in args.test_projects:
+            split_of[p] = "test"
+        elif p in args.val_projects:
+            split_of[p] = "val"
+        elif args.test_projects or args.val_projects:
+            split_of[p] = "train"  # explicit split: everything not named trains
+        else:
+            split_of[p] = assign(p, args.val, args.test, args.seed)
 
     train_hashes = {r["code_hash"] for r in rows if split_of[r["project"]] == "train"}
     train_names = {r["name"] for r in rows if split_of[r["project"]] == "train"}

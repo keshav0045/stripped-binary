@@ -8,6 +8,7 @@ five scores sum to 1 — comparable in spirit to the kNN vote share.
 
 import argparse
 import json
+import random
 from pathlib import Path
 
 import torch
@@ -22,7 +23,8 @@ class LoraNamer:
         self.device = device or ("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.tok = AutoTokenizer.from_pretrained(adapter)
         self.tok.padding_side = "left"
-        self.model = AutoPeftModelForCausalLM.from_pretrained(adapter, torch_dtype=torch.bfloat16).to(self.device).eval()
+        dtype = torch.bfloat16 if self.device != "cuda" or torch.cuda.is_bf16_supported() else torch.float16
+        self.model = AutoPeftModelForCausalLM.from_pretrained(adapter, torch_dtype=dtype).to(self.device).eval()
 
     @torch.no_grad()
     def predict(self, codes, top=5):
@@ -52,10 +54,13 @@ def main():
     ap.add_argument("--test", default="data/test.jsonl")
     ap.add_argument("--out", default="preds/lora.jsonl", type=Path)
     ap.add_argument("--batch", type=int, default=8)
+    ap.add_argument("--sample", type=int, default=0, help="random test subset (same seed as the zero-shot runs); 0 = all")
     args = ap.parse_args()
 
     namer = LoraNamer(args.adapter)
     rows = [json.loads(l) for l in open(args.test)]
+    if args.sample and args.sample < len(rows):
+        rows = random.Random(0).sample(rows, args.sample)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:
         for i in range(0, len(rows), args.batch):
