@@ -26,7 +26,8 @@ Val is jq (6,480); train is the other 15 projects (83,587).
 |---|---|---|---|---|
 | frequency prior | all 11,535 | 0.1 | 0.1 | 0.0 |
 | TF-IDF kNN | all 11,535 | 0.0 | 0.0 | 1.3 |
-| Qwen2.5-Coder-7B, zero-shot (local, Ollama) | 1K sample | – | – | – |
+| TF-IDF kNN | same 1K sample | 0.0 | 0.0 | 1.0 |
+| Qwen2.5-Coder-7B, zero-shot (local, Ollama) | 1K sample | 1.8 | 2.4 | 16.5 |
 | Qwen2.5-Coder-1.5B + LoRA | 1K sample | – | – | – |
 
 **Why the baselines are near zero:** only 0.7% of test-function names occur
