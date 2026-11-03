@@ -15,6 +15,7 @@ steps; rerun with --resume after a disconnect.
 """
 
 import argparse
+import inspect
 import json
 import random
 from pathlib import Path
@@ -68,7 +69,7 @@ def main():
     tok = AutoTokenizer.from_pretrained(args.base)
     tok.pad_token = tok.pad_token or tok.eos_token
     bf16 = torch.cuda.is_bf16_supported()  # False on T4 / P100: fall back to fp16
-    model = AutoModelForCausalLM.from_pretrained(args.base, torch_dtype=torch.bfloat16 if bf16 else torch.float16)
+    model = AutoModelForCausalLM.from_pretrained(args.base, dtype=torch.bfloat16 if bf16 else torch.float16)
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
     model = get_peft_model(model, LoraConfig(
@@ -82,17 +83,27 @@ def main():
                 p.data = p.data.float()
     model.print_trainable_parameters()
 
+    train_ds = load(args.train, tok, args.max_len, limit=args.limit)
+    # transformers 5 dropped warmup_ratio and group_by_length; warmup_steps works in 4 and 5
+    steps = len(train_ds) * args.epochs / (args.batch * args.grad_accum * max(torch.cuda.device_count(), 1))
+    extra = {}
+    accepted = inspect.signature(TrainingArguments).parameters
+    if "group_by_length" in accepted:
+        extra["group_by_length"] = True
+    elif "train_sampling_strategy" in accepted:
+        extra["train_sampling_strategy"] = "group_by_length"
+
     trainer = Trainer(
         model=model,
         args=TrainingArguments(
             output_dir=args.out, num_train_epochs=args.epochs, learning_rate=args.lr,
             per_device_train_batch_size=args.batch, per_device_eval_batch_size=args.batch,
             gradient_accumulation_steps=args.grad_accum,
-            lr_scheduler_type="cosine", warmup_ratio=0.03, bf16=bf16, fp16=not bf16, logging_steps=20,
-            eval_strategy="steps", eval_steps=500, save_steps=500, save_total_limit=2,
-            load_best_model_at_end=True, group_by_length=True, report_to="none",
+            lr_scheduler_type="cosine", warmup_steps=max(int(0.03 * steps), 1), bf16=bf16, fp16=not bf16,
+            logging_steps=20, eval_strategy="steps", eval_steps=500, save_steps=500, save_total_limit=2,
+            load_best_model_at_end=True, report_to="none", **extra,
         ),
-        train_dataset=load(args.train, tok, args.max_len, limit=args.limit),
+        train_dataset=train_ds,
         eval_dataset=load(args.val, tok, args.max_len, limit=500),
         data_collator=DataCollatorForSeq2Seq(tok, padding=True, label_pad_token_id=-100),
     )

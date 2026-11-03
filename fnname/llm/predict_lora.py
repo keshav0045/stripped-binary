@@ -24,7 +24,7 @@ class LoraNamer:
         self.tok = AutoTokenizer.from_pretrained(adapter)
         self.tok.padding_side = "left"
         dtype = torch.bfloat16 if self.device != "cuda" or torch.cuda.is_bf16_supported() else torch.float16
-        self.model = AutoPeftModelForCausalLM.from_pretrained(adapter, torch_dtype=dtype).to(self.device).eval()
+        self.model = AutoPeftModelForCausalLM.from_pretrained(adapter, dtype=dtype).to(self.device).eval()
 
     @torch.no_grad()
     def predict(self, codes, top=5):
