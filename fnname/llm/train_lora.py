@@ -7,8 +7,8 @@ Loss is computed on the name tokens only; the prompt is masked out.
 
 Runs on a free Kaggle/Colab T4 (16 GB): fp16 is picked automatically where bf16
 isn't supported, gradient checkpointing keeps memory down, and --limit trains on
-a random subset so a run fits in one session. Checkpoints are saved every 500
-steps; rerun with --resume after a disconnect.
+a random subset so a run fits in one session. Checkpoints are saved every 100
+steps (--save-steps); rerun with --resume after a disconnect.
 
     # free T4, ~2-3 h
     python -m fnname.llm.train_lora --limit 30000 --max-len 1024 --resume
@@ -64,6 +64,7 @@ def main():
     ap.add_argument("--resume", action="store_true", help="continue from the last checkpoint in --out")
     ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--rank", type=int, default=16)
+    ap.add_argument("--save-steps", type=int, default=100, help="checkpoint interval; a resume loses at most this many steps")
     args = ap.parse_args()
 
     tok = AutoTokenizer.from_pretrained(args.base)
@@ -100,8 +101,7 @@ def main():
             per_device_train_batch_size=args.batch, per_device_eval_batch_size=args.batch,
             gradient_accumulation_steps=args.grad_accum,
             lr_scheduler_type="cosine", warmup_steps=max(int(0.03 * steps), 1), bf16=bf16, fp16=not bf16,
-            logging_steps=20, eval_strategy="steps", eval_steps=500, save_steps=500, save_total_limit=2,
-            load_best_model_at_end=True, report_to="none", **extra,
+            logging_steps=20, eval_strategy="steps", eval_steps=500, save_steps=args.save_steps, save_total_limit=2, report_to="none", **extra,
         ),
         train_dataset=train_ds,
         eval_dataset=load(args.val, tok, args.max_len, limit=500),
